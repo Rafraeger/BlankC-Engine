@@ -1,48 +1,48 @@
 # Physics & Collision System
 
-Dokumen ini menguraikan arsitektur sistem fisika dasar yang digunakan dalam BlankC Engine. Sistem ini sengaja dibuat sederhana untuk efisiensi dan kemudahan modifikasi, berfokus pada dinamika gerakan dan deteksi tumbukan kotak (Bounding Box).
+This document outlines the architecture of the basic physics system used in BlankC Engine. This system was intentionally kept simple for efficiency and ease of modification, focusing on movement dynamics and Bounding Box collision detection.
 
-## 1. Arsitektur Fisika
+## 1. Physics Architecture
 
-Sistem fisika BlankC Engine bukanlah physics engine penuh seperti PhysX atau Bullet. Ini adalah sistem fisika *custom* yang ditangani dalam modul `physics.c`.
+BlankC Engine's physics system is not a full-fledged physics engine like PhysX or Bullet. It is a *custom* physics system handled in the `physics.c` module.
 
-Komponen utama:
-1.  **PhysicsWorld:** Manager utama yang menyimpan daftar semua entitas fisik yang aktif di dunia, serta parameter global seperti vektor gravitasi.
-2.  **RigidBody:** Komponen yang melekat pada objek yang memberikan sifat fisik. Menyimpan posisi, kecepatan (*velocity*), ukuran ruang (untuk tabrakan), dan status (*static* atau *dynamic*).
+Main components:
+1.  **PhysicsWorld:** The main manager that stores a list of all active physical entities in the world, as well as global parameters like the gravity vector.
+2.  **RigidBody:** A component attached to an object that gives it physical properties. It stores position, velocity, spatial size (for collisions), and status (*static* or *dynamic*).
 
-## 2. Update Loop Fisika
+## 2. Physics Update Loop
 
-Pembaruan fisika terjadi di dalam fungsi `physics_world_update()`, yang dipanggil satu kali setiap *frame* (dikendalikan oleh delta time).
+Physics updates occur within the `physics_world_update()` function, which is called once per *frame* (controlled by delta time).
 
-Proses pembaruan bekerja dalam tiga tahap utama untuk setiap *RigidBody* yang dinamis (`is_static == 0`):
+The update process works in three main stages for each dynamic *RigidBody* (`is_static == 0`):
 
-1.  **Integrasi Gaya (Gravity):**
-    Kecepatan (*velocity*) dari *RigidBody* ditambahkan dengan percepatan gravitasi yang dikalikan dengan delta time.
+1.  **Force Integration (Gravity):**
+    The *velocity* of the *RigidBody* is increased by the gravity acceleration multiplied by the delta time.
     `Velocity = Velocity + (Gravity * DeltaTime)`
-2.  **Integrasi Posisi:**
-    Posisi *RigidBody* diperbarui berdasarkan kecepatan saat ini dikalikan dengan delta time.
+2.  **Position Integration:**
+    The *RigidBody* position is updated based on the current velocity multiplied by delta time.
     `Position = Position + (Velocity * DeltaTime)`
-3.  **Resolusi Tumbukan (Collision Resolution):**
-    Setelah posisi baru dihitung, sistem akan mengecek apakah posisi baru ini menyebabkan *RigidBody* tumpang tindih dengan *RigidBody* lain.
+3.  **Collision Resolution:**
+    After the new position is calculated, the system checks if this new position causes the *RigidBody* to overlap with another *RigidBody*.
 
-## 3. Deteksi Tabrakan AABB
+## 3. AABB Collision Detection
 
-BlankC Engine menggunakan bentuk tabrakan **AABB (Axis-Aligned Bounding Box)**. AABB adalah kotak 3D murni yang sisi-sisinya selalu sejajar dengan sumbu X, Y, dan Z (tidak bisa miring/berotasi). Ini membuatnya sangat cepat untuk dihitung.
+BlankC Engine uses **AABB (Axis-Aligned Bounding Box)** collisions. An AABB is a pure 3D box whose sides are always parallel to the X, Y, and Z axes (it cannot be tilted/rotated). This makes it extremely fast to compute.
 
-### Mekanisme Tumbukan
+### Collision Mechanism
 
-Jika dua AABB tumpang tindih (`test_aabb_overlap`):
-1. Sistem menghitung **MTV (Minimum Translation Vector)**. MTV adalah vektor terkecil yang diperlukan untuk memisahkan kedua kotak yang saling bertabrakan.
-2. Jika benda bergerak menabrak benda **statis** (dinding, lantai): 
-   - Benda bergerak didorong keluar sebesar MTV.
-   - Kecepatan pada sumbu tabrakan di-nol-kan untuk menghentikan gerakan paksa (mencegah benda terus mencoba menembus).
-3. Jika benda bergerak menabrak benda **dinamis** lain:
-   - Kedua benda didorong saling menjauh, masing-masing menanggung setengah dari nilai MTV.
+If two AABBs overlap (`test_aabb_overlap`):
+1. The system calculates the **MTV (Minimum Translation Vector)**. The MTV is the smallest vector required to separate the two colliding boxes.
+2. If a moving object collides with a **static** object (wall, floor): 
+   - The moving object is pushed out by the MTV amount.
+   - Velocity on the collision axis is zeroed out to stop forced movement (preventing the object from continuing to try and push through).
+3. If a moving object collides with another **dynamic** object:
+   - Both objects are pushed away from each other, each taking half of the MTV value.
 
-## 4. Keterbatasan (Limitations)
+## 4. Limitations
 
-Karena sifatnya yang sederhana, sistem ini memiliki beberapa keterbatasan penting yang harus dipahami oleh programmer:
+Due to its simple nature, this system has several important limitations that programmers should be aware of:
 
-- **Tunneling:** Objek yang bergerak dengan kecepatan sangat tinggi dapat menembus dinding tipis dalam satu frame (karena pengecekan hanya terjadi pada posisi awal dan akhir frame, bukan *Continuous Collision Detection*). Solusi: gunakan dinding yang tebal atau batasi batas kecepatan maksimum objek.
-- **Tidak Ada Rotasi Fisik:** Kotak AABB tidak merespons rotasi. Jika Anda memutar model secara visual di scene, kotak tabrakannya tetap tidak berubah. Sistem ini belum mendukung OBB (Oriented Bounding Box) atau tabrakan berbasis *mesh*.
-- **Tidak Ada Friksi/Pantulan:** Sistem saat ini tidak mensimulasikan gaya gesek (friksi) permukaan atau sifat memantul (*bounciness*). Semua benda akan meluncur atau berhenti sepenuhnya berdasarkan modifikasi kecepatan manual.
+- **Tunneling:** Objects moving at very high speeds can pass through thin walls in a single frame (because checking only occurs at the start and end positions of the frame, not *Continuous Collision Detection*). Solution: use thick walls or limit the maximum speed of objects.
+- **No Physical Rotation:** AABB boxes do not respond to rotation. If you visually rotate a model in the scene, its collision box remains unchanged. This system does not yet support OBB (Oriented Bounding Box) or *mesh*-based collisions.
+- **No Friction/Bounciness:** The system currently does not simulate surface friction or bounciness. All objects will slide or come to a complete stop based solely on manual velocity modifications.

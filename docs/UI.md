@@ -1,64 +1,64 @@
 # UI System (Nuklear)
 
-BlankC Engine mengintegrasikan **Nuklear** (sebuah *immediate mode GUI library*) untuk menangani antarmuka pengguna seperti Main Menu, HUD, dan panel Debugging.
+BlankC Engine integrates **Nuklear** (an *immediate mode GUI library*) to handle user interfaces such as Main Menus, HUDs, and Debugging panels.
 
 ## 1. Immediate Mode GUI (IMGUI)
 
-Tidak seperti sistem UI tradisional (Retained Mode) di mana Anda membuat "objek tombol" di awal lalu meng-update text-nya, **Immediate Mode GUI** berarti Anda mendefinisikan dan menggambar UI secara terus-menerus setiap *frame* di dalam *main loop*.
+Unlike traditional UI systems (Retained Mode) where you create a "button object" initially and then update its text, **Immediate Mode GUI** means you define and draw the UI continuously every *frame* inside the *main loop*.
 
-Keuntungan IMGUI:
-- Tidak ada state UI yang perlu dikelola secara terpisah.
-- Nilai variabel langsung diikat (bind) ke elemen UI (misalnya slider langsung mengubah variabel `float light_intensity`).
-- Sangat cepat untuk membuat alat *debugging* atau antarmuka *in-game*.
+IMGUI Advantages:
+- No UI state needs to be managed separately.
+- Variable values are directly bound to UI elements (e.g., a slider directly changes the `float light_intensity` variable).
+- Extremely fast for creating *debugging* tools or *in-game* interfaces.
 
-## 2. Inisialisasi
+## 2. Initialization
 
-Nuklear diinisialisasi secara otomatis oleh `engine_create()`. Objek utama Nuklear (`struct nk_context*`) dapat diakses melalui `engine->ui->ctx`.
+Nuklear is initialized automatically by `engine_create()`. The main Nuklear object (`struct nk_context*`) can be accessed via `engine->ui->ctx`.
 
-## 3. Alur Penggambaran UI (UI Flow)
+## 3. UI Draw Flow
 
-Siklus pembuatan UI per frame dalam BlankC Engine:
+The UI creation cycle per frame in BlankC Engine:
 
-1.  **New Frame:** `ui_new_frame()` dipanggil di awal `engine_update()`. Ini mengumpulkan semua input mouse/keyboard dan menyiapkannya untuk Nuklear.
-2.  **Deklarasi Jendela (Window):** Anda memulai jendela baru menggunakan `nk_begin()`.
-3.  **Deklarasi Layout & Elemen:** Anda menentukan layout (berapa kolom per baris) menggunakan `nk_layout_row_dynamic()`, lalu menambahkan elemen (Teks, Tombol, Slider).
-4.  **Tutup Jendela:** Anda mengakhiri deklarasi jendela dengan `nk_end()`.
-5.  **Render:** Pada akhir frame, `engine_swap()` akan memanggil `ui_render()`, yang mengambil semua perintah deklarasi dari langkah 2-4 dan mengirimkannya ke GPU (OpenGL) untuk digambar di atas scene 3D.
+1.  **New Frame:** `ui_new_frame()` is called at the beginning of `engine_update()`. This collects all mouse/keyboard input and prepares it for Nuklear.
+2.  **Window Declaration:** You start a new window using `nk_begin()`.
+3.  **Layout & Element Declaration:** You define the layout (how many columns per row) using `nk_layout_row_dynamic()`, then add elements (Texts, Buttons, Sliders).
+4.  **Close Window:** You end the window declaration with `nk_end()`.
+5.  **Render:** At the end of the frame, `engine_swap()` will call `ui_render()`, which takes all the declaration commands from steps 2-4 and sends them to the GPU (OpenGL) to be drawn on top of the 3D scene.
 
-## 4. Contoh Penggunaan
+## 4. Usage Example
 
-Berikut adalah contoh pembuatan Main Menu sederhana:
+Here is an example of creating a simple Main Menu:
 
 ```c
 struct nk_context* ctx = engine->ui->ctx;
 
-// Mulai deklarasi UI
+// Start UI declaration
 if (nk_begin(ctx, "Main Menu", nk_rect(50, 50, 200, 150),
     NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MOVABLE)) 
 {
-    // Set 1 kolom per baris, tinggi 40 pixel
+    // Set 1 column per row, 40 pixels high
     nk_layout_row_dynamic(ctx, 40, 1);
     
-    // Elemen Teks
+    // Text Element
     nk_label(ctx, "Welcome to BlankC", NK_TEXT_CENTERED);
     
-    // Elemen Tombol
+    // Button Element
     if (nk_button_label(ctx, "START GAME")) {
-        // Logika ketika tombol Start ditekan
+        // Logic when the Start button is pressed
         g_state = STATE_PLAYING;
     }
 }
-nk_end(ctx); // Wajib dipanggil untuk menutup nk_begin
+nk_end(ctx); // Must be called to close nk_begin
 ```
 
-## 5. Menangani Konflik Input (Mouse Capture)
+## 5. Handling Input Conflicts (Mouse Capture)
 
-Saat Anda memiliki UI (seperti jendela Debug) yang menumpuk di atas game 3D, Anda tidak ingin aksi mengklik tombol di UI juga dianggap sebagai "menembak senjata" di dalam game.
+When you have a UI (like a Debug window) stacked on top of a 3D game, you don't want the action of clicking a UI button to also be considered "shooting a weapon" inside the game.
 
-Gunakan fungsi ini untuk mengecek apakah mouse sedang berinteraksi dengan UI:
+Use this function to check if the mouse is currently interacting with the UI:
 ```c
 if (!ui_want_capture_mouse(engine->ui)) {
-    // Mouse tidak berada di atas UI Nuklear, aman untuk input game 3D
+    // Mouse is not over a Nuklear UI, safe for 3D game input
     if (input_mouse_pressed(engine->input, 0)) shoot_gun();
 }
 ```

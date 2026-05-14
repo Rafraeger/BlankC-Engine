@@ -1,44 +1,44 @@
 # Asset Management & Resource Loading
 
-Dokumen ini menjelaskan bagaimana BlankC Engine memuat dan mengelola aset dari disk ke dalam memori komputer (RAM) dan memori grafis (VRAM). Semua fungsi pemuatan aset berada di bawah modul `resource/` (`loader.c` dan `obj_loader.c`).
+This document explains how BlankC Engine loads and manages assets from disk into computer memory (RAM) and graphics memory (VRAM). All asset loading functions are located under the `resource/` module (`loader.c` and `obj_loader.c`).
 
 ## 1. Path Resolution (`asset_path`)
 
-Karena program C dapat dijalankan dari berbagai direktori kerja (*working directory*), mengandalkan *relative path* murni (seperti `"assets/texture.png"`) sering menyebabkan *File Not Found*.
+Since C programs can be run from various working directories, relying purely on *relative paths* (like `"assets/texture.png"`) often leads to *File Not Found* errors.
 
-Untuk mengatasi ini, BlankC menggunakan fungsi **`asset_path(const char* rel_path)`**.
-- Fungsi ini secara dinamis mencari letak file *executable* Anda.
-- Ia akan berjalan mundur ke atas struktur folder (maksimal 20 tingkat) mencari folder bernama `assets/`.
-- Setelah ditemukan, ia menggabungkan path tersebut untuk menghasilkan **Absolute Path**.
-- Pada Windows, fungsi ini secara otomatis menormalkan pemisah path (mengubah `/` menjadi `\`) untuk mencegah masalah kompatibilitas dengan library pihak ketiga.
+To solve this, BlankC uses the **`asset_path(const char* rel_path)`** function.
+- This function dynamically finds the location of your *executable* file.
+- It will walk backwards up the folder structure (up to 20 levels) looking for a folder named `assets/`.
+- Once found, it concatenates the path to produce an **Absolute Path**.
+- On Windows, this function automatically normalizes path separators (changing `/` to `\`) to prevent compatibility issues with third-party libraries.
 
-**Aturan Emas:** Setiap string yang dikembalikan oleh `asset_path()` dialokasikan secara dinamis (`malloc`). Anda **wajib** memanggil `free()` setelah selesai menggunakannya untuk mencegah kebocoran memori.
+**Golden Rule:** Every string returned by `asset_path()` is dynamically allocated (`malloc`). You **must** call `free()` after you are done using it to prevent memory leaks.
 
-## 2. Memuat Tekstur (Textures)
+## 2. Loading Textures
 
-BlankC menggunakan **`stb_image`** untuk mengurai file gambar (PNG, JPG, BMP) menjadi array pixel.
+BlankC uses **`stb_image`** to parse image files (PNG, JPG, BMP) into pixel arrays.
 
-1.  **`texture_load()`:** Membaca file gambar ke RAM CPU (`TextureData`).
-2.  **`texture_create_file()`:** Ini adalah *wrapper* utama. Fungsi ini memanggil `texture_load`, lalu mengambil data piksel tersebut dan mengirimkannya ke VRAM GPU melalui `glTexImage2D`. Fungsi ini kemudian memanggil `texture_data_free()` untuk membuang salinan RAM, menyisakan hanya referensi GPU (berupa `GLuint id` di dalam struct `Texture`).
-3.  **Mipmaps:** Engine secara otomatis menghasilkan mipmaps (`glGenerateMipmap`) untuk setiap tekstur yang dimuat, sehingga tekstur terlihat halus saat dilihat dari jauh.
-4.  **Format:** Mendukung tekstur RGB (3 channel) dan RGBA (4 channel, mendukung transparansi).
+1.  **`texture_load()`:** Reads the image file into CPU RAM (`TextureData`).
+2.  **`texture_create_file()`:** This is the main *wrapper*. This function calls `texture_load`, then takes the pixel data and sends it to GPU VRAM via `glTexImage2D`. The function then calls `texture_data_free()` to discard the RAM copy, leaving only the GPU reference (as a `GLuint id` inside the `Texture` struct).
+3.  **Mipmaps:** The engine automatically generates mipmaps (`glGenerateMipmap`) for every loaded texture, so textures look smooth when viewed from a distance.
+4.  **Formats:** Supports RGB textures (3 channels) and RGBA (4 channels, supports transparency).
 
-## 3. Memuat Model 3D (OBJ Files)
+## 3. Loading 3D Models (OBJ Files)
 
-BlankC memiliki parser OBJ internal (`obj_loader.c`) yang dirancang khusus untuk membaca file Wavefront `.obj`.
+BlankC has an internal OBJ parser (`obj_loader.c`) designed specifically to read Wavefront `.obj` files.
 
-### Fitur Parser OBJ:
-- Mendukung ekstraksi Vertices (`v`), Texture Coordinates (`vt`), Normals (`vn`), dan Faces (`f`).
-- Saat ini **hanya** mendukung wajah berbentuk **Segitiga (Triangles)**. Pastikan untuk men-centang opsi "Triangulate Faces" saat mengekspor model Anda dari Blender atau software 3D lainnya.
+### OBJ Parser Features:
+- Supports extraction of Vertices (`v`), Texture Coordinates (`vt`), Normals (`vn`), and Faces (`f`).
+- Currently **only** supports **Triangle** faces. Make sure to check the "Triangulate Faces" option when exporting your model from Blender or other 3D software.
 
-### Manajemen Memori Pemuatan:
-Membaca model besar berpotensi menyebabkan *Stack Overflow* jika menggunakan array statis. Oleh karena itu, parser `obj_load` menggunakan struktur **`DynArray`** (Dynamic Array).
-- `DynArray` memulai alokasi di heap dengan ukuran kecil.
-- Jika kapasitas penuh saat membaca baris baru dari file `.obj`, ia otomatis melipatgandakan ukurannya menggunakan `realloc()`.
-- Setelah file selesai dibaca, data dari berbagai `DynArray` dirakit menjadi format `Vertex` tunggal yang siap dikirim ke GPU (`mesh_create`).
-- Semua `DynArray` sementara (*scratch memory*) langsung di-`free()`.
+### Loading Memory Management:
+Reading large models can potentially cause a *Stack Overflow* if using static arrays. Therefore, the `obj_load` parser uses a **`DynArray`** (Dynamic Array) structure.
+- `DynArray` starts allocation on the heap with a small size.
+- If capacity is full when reading a new line from the `.obj` file, it automatically doubles its size using `realloc()`.
+- After the file is completely read, data from the various `DynArray`s is assembled into a single `Vertex` format ready to be sent to the GPU (`mesh_create`).
+- All temporary `DynArray`s (*scratch memory*) are immediately `free()`'d.
 
-## 4. Keterbatasan (Limitations)
+## 4. Limitations
 
-- **Tidak Ada Resource Cache/Manager:** Jika Anda memuat `"cube.obj"` 10 kali menggunakan `obj_load()`, engine akan membaca file tersebut dari disk 10 kali dan menduplikasi data di VRAM sebanyak 10 kali. Sangat disarankan Anda memuat model/tekstur satu kali ke dalam variabel, lalu memberikan pointer (referensi) yang sama ke berbagai `SceneNode`.
-- **Material MTL:** Parser OBJ saat ini tidak membaca file material (`.mtl`). Pengaturan tekstur harus dilakukan secara manual di kode C dengan menetapkan struct `Texture*` ke `SceneNode->texture`.
+- **No Resource Cache/Manager:** If you load `"cube.obj"` 10 times using `obj_load()`, the engine will read the file from disk 10 times and duplicate the data in VRAM 10 times. It is highly recommended that you load models/textures once into a variable, then pass the same pointer (reference) to various `SceneNode`s.
+- **MTL Materials:** The current OBJ parser does not read material files (`.mtl`). Texture setup must be done manually in C code by assigning the `Texture*` struct to `SceneNode->texture`.

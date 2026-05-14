@@ -1,57 +1,57 @@
 # Rendering Pipeline & System
 
-Dokumen ini menjelaskan bagaimana sistem grafis BlankC Engine bekerja dari memori hingga tampil ke layar.
+This document explains how the BlankC Engine graphics system works from memory to the screen.
 
-## 1. Konsep Dasar Rendering
+## 1. Basic Rendering Concepts
 
-BlankC Engine menggunakan sistem **Forward Rendering** murni dengan OpenGL 3.3 Core Profile. Tidak ada deferred rendering atau post-processing rumit secara default, menjaga pipeline tetap sangat ringan dan mudah dimengerti.
+BlankC Engine uses a pure **Forward Rendering** system with OpenGL 3.3 Core Profile. There is no deferred rendering or complex post-processing by default, keeping the pipeline extremely lightweight and easy to understand.
 
-Komponen utama rendering terdiri dari:
-1.  **Renderer (`renderer.h`):** Manager utama yang memegang state OpenGL (seperti *clear color*, status depth test, dan shader yang sedang aktif).
-2.  **Shader (`shader.h`):** Pembungkus (wrapper) untuk program shader GLSL (Vertex & Fragment).
-3.  **Mesh (`mesh.h`):** Representasi geometri 3D. Mengelola Vertex Array Object (VAO), Vertex Buffer Object (VBO), dan Element Buffer Object (EBO).
-4.  **Texture (`texture.h`):** Pembungkus untuk gambar 2D yang diload ke VRAM.
+The main rendering components consist of:
+1.  **Renderer (`renderer.h`):** The main manager that holds the OpenGL state (such as *clear color*, depth test status, and the currently active shader).
+2.  **Shader (`shader.h`):** A wrapper for GLSL shader programs (Vertex & Fragment).
+3.  **Mesh (`mesh.h`):** Represents 3D geometry. Manages the Vertex Array Object (VAO), Vertex Buffer Object (VBO), and Element Buffer Object (EBO).
+4.  **Texture (`texture.h`):** A wrapper for 2D images loaded into VRAM.
 
 ## 2. Rendering Pipeline
 
-Proses menggambar satu frame (`renderer_draw_scene`) melewati tahapan berikut:
+The process of drawing a single frame (`renderer_draw_scene`) goes through the following stages:
 
 1.  **Clear Screen:** 
-    `renderer_clear()` dipanggil untuk membersihkan color buffer dan depth buffer menggunakan warna latar belakang yang telah ditentukan.
+    `renderer_clear()` is called to clear the color buffer and depth buffer using the predefined background color.
 2.  **Bind Camera & Shader:**
-    Kamera menghitung matriks *View* dan *Projection*. Matriks ini kemudian dikirim ke GPU melalui uniform pada shader yang sedang aktif (`uView` dan `uProjection`).
+    The camera calculates the *View* and *Projection* matrices. These matrices are then sent to the GPU via uniforms on the active shader (`uView` and `uProjection`).
 3.  **Scene Graph Traversal:**
-    Renderer menelusuri setiap `SceneNode` di dalam `SceneGraph`.
+    The renderer iterates through every `SceneNode` inside the `SceneGraph`.
 4.  **Draw Call per Node:**
-    Jika sebuah `SceneNode` memiliki data `Mesh` (tersimpan di `node->user_data`):
-    - Matriks *World* (transformasi absolut objek) dikirim ke uniform `uModel`.
-    - Jika node memiliki `Texture`, tekstur tersebut di-bind (slot 0) dan uniform `uUseTexture` diset ke 1. Jika tidak, warna fallback (`uColor`) digunakan.
-    - Fungsi `mesh_render()` dipanggil, yang akan melakukan bind pada VAO mesh tersebut dan mengeksekusi perintah `glDrawElements`.
+    If a `SceneNode` has `Mesh` data (stored in `node->user_data`):
+    - The *World* matrix (absolute object transformation) is sent to the `uModel` uniform.
+    - If the node has a `Texture`, the texture is bound (slot 0) and the `uUseTexture` uniform is set to 1. Otherwise, a fallback color (`uColor`) is used.
+    - The `mesh_render()` function is called, which binds the mesh's VAO and executes the `glDrawElements` command.
 5.  **Swap Buffers:**
-    Setelah seluruh node digambar, `engine_swap()` dipanggil untuk menampilkan *back buffer* ke layar.
+    After all nodes are drawn, `engine_swap()` is called to present the *back buffer* to the screen.
 
 ## 3. Shader System
 
-BlankC Engine menggunakan sistem shader monolitik (satu shader besar untuk banyak hal) pada implementasi dasarnya (`assets/shaders/basic.vert` dan `basic.frag`).
+BlankC Engine uses a monolithic shader system (one large shader for many things) in its basic implementation (`assets/shaders/basic.vert` and `basic.frag`).
 
 ### Vertex Attributes
-Setiap vertex yang dikirim ke shader memiliki layout (sesuai definisi di `mesh.c`):
-- `layout(location = 0)`: Posisi vertex (`vec3`)
-- `layout(location = 1)`: Koordinat UV/Tekstur (`vec2`)
+Every vertex sent to the shader has a layout (as defined in `mesh.c`):
+- `layout(location = 0)`: Vertex Position (`vec3`)
+- `layout(location = 1)`: UV/Texture Coordinates (`vec2`)
 - `layout(location = 2)`: Normal (`vec3`)
 
-### Uniforms Wajib
-Shader standar BlankC Engine mengharapkan uniform berikut:
-- **Matriks Transformasi:** `uModel`, `uView`, `uProjection`
+### Required Uniforms
+The standard BlankC Engine shader expects the following uniforms:
+- **Transformation Matrices:** `uModel`, `uView`, `uProjection`
 - **Lighting & Material:** `uLightPos`, `uLightColor`, `uViewPos`
-- **Tekstur:** `uTexture` (sampler2D), `uUseTexture` (int flag), `uColor` (vec3 fallback)
+- **Textures:** `uTexture` (sampler2D), `uUseTexture` (int flag), `uColor` (vec3 fallback)
 
 ## 4. Camera System
 
-Kamera dalam BlankC Engine (`camera.c`) pada dasarnya adalah sistem yang mengelola posisi 3D (`vec3`) dan sudut rotasi (Yaw & Pitch).
+The camera in BlankC Engine (`camera.c`) is basically a system that manages a 3D position (`vec3`) and rotation angles (Yaw & Pitch).
 
-- Kamera menghitung **Front Vector**, **Right Vector**, dan **Up Vector** berdasarkan Yaw dan Pitch setiap frame.
-- **View Matrix** dihasilkan menggunakan fungsi matematika `mat4_look_at()`.
-- **Projection Matrix** dihasilkan menggunakan `mat4_perspective()`, dengan parameter FOV (Field of View) dan aspek rasio layar.
+- The camera calculates the **Front Vector**, **Right Vector**, and **Up Vector** based on Yaw and Pitch every frame.
+- The **View Matrix** is generated using the `mat4_look_at()` math function.
+- The **Projection Matrix** is generated using `mat4_perspective()`, with FOV (Field of View) and screen aspect ratio as parameters.
 
-*Catatan: Secara internal, sumbu kamera selalu menganggap Y sebagai UP, dan -Z sebagai FORWARD (Right-handed coordinate system standar OpenGL).*
+*Note: Internally, the camera axes always assume Y is UP, and -Z is FORWARD (Standard OpenGL right-handed coordinate system).*
