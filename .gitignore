@@ -51,6 +51,12 @@ lib/
 *.pdb
 *.ilk
 
+# Internal Notes
+cek.md
+fps_plan.md
+plan.md
+progress.md
+
 # IDEs and Editors
 .idea/
 .vscode/
